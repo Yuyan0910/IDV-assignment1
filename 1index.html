@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>Singapore PSI Readings</title>
+
+    <style>
+
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f5f5f5;
+            margin: 40px;
+        }
+
+        h1 {
+            text-align: center;
+        }
+
+        #updated-time {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            background-color: white;
+        }
+
+        th,
+        td {
+            border: 1px solid #dddddd;
+            padding: 10px;
+            text-align: center;
+        }
+
+        th {
+            background-color: #333333;
+            color: white;
+        }
+
+        tr:nth-child(even) {
+            background-color: #f2f2f2;
+        }
+
+    </style>
+</head>
+
+
+<body>
+
+    <h1>Singapore PSI Readings</h1>
+
+    <p id="updated-time">
+        Loading data...
+    </p>
+
+    <table>
+
+        <thead>
+
+            <tr>
+                <th>Reading</th>
+                <th>West</th>
+                <th>National</th>
+                <th>East</th>
+                <th>Central</th>
+                <th>South</th>
+                <th>North</th>
+            </tr>
+
+        </thead>
+
+
+        <tbody id="psi-table">
+
+        </tbody>
+
+    </table>
+
+
+
+    <script>
+
+        const apiURL =
+            "https://api.data.gov.sg/v1/environment/psi";
+
+
+        fetch(apiURL)
+
+            .then(response => response.json())
+
+            .then(data => {
+
+                console.log(data);
+
+
+                // Get readings from API
+
+                const readings =
+                    data.items[0].readings;
+
+
+                // Get table body
+
+                const table =
+                    document.getElementById("psi-table");
+
+
+                // Go through all readings
+
+                Object.keys(readings).forEach(readingName => {
+
+                    const values =
+                        readings[readingName];
+
+
+                    const row =
+                        document.createElement("tr");
+
+
+                    row.innerHTML = `
+
+                        <td>${readingName}</td>
+
+                        <td>${values.west}</td>
+
+                        <td>${values.national}</td>
+
+                        <td>${values.east}</td>
+
+                        <td>${values.central}</td>
+
+                        <td>${values.south}</td>
+
+                        <td>${values.north}</td>
+
+                    `;
+
+
+                    table.appendChild(row);
+
+                });
+
+
+                // Display update time
+
+                const updateTime =
+                    data.items[0].update_timestamp;
+
+
+                document.getElementById(
+                    "updated-time"
+                ).textContent =
+                    "Last updated: " +
+                    new Date(updateTime).toLocaleString();
+
+            })
+
+
+            .catch(error => {
+
+                console.error(
+                    "Error loading PSI data:",
+                    error
+                );
+
+
+                document.getElementById(
+                    "updated-time"
+                ).textContent =
+                    "Failed to load PSI data.";
+
+            });
+
+    </script>
+
+</body>
+
+</html>
