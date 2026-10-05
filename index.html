@@ -1,183 +1,127 @@
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-
-    <title>Singapore PSI Readings</title>
-
-    <style>
-
-        body {
-            font-family: Arial, sans-serif;
-            background-color: #f5f5f5;
-            margin: 40px;
-        }
-
-        h1 {
-            text-align: center;
-        }
-
-        #updated-time {
-            text-align: center;
-            margin-bottom: 20px;
-        }
-
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            background-color: white;
-        }
-
-        th,
-        td {
-            border: 1px solid #dddddd;
-            padding: 10px;
-            text-align: center;
-        }
-
-        th {
-            background-color: #333333;
-            color: white;
-        }
-
-        tr:nth-child(even) {
-            background-color: #f2f2f2;
-        }
-
-    </style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Singapore PSI Readings</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 32px auto; padding: 0 20px; max-width: 1100px; color: #222; }
+    h1 { color: #155e75; }
+    button { padding: 10px 18px; cursor: pointer; }
+    .table-container { overflow-x: auto; margin-top: 20px; }
+    table { border-collapse: collapse; width: 100%; }
+    caption { text-align: left; font-weight: bold; margin-bottom: 10px; }
+    th, td { border: 1px solid #ccc; padding: 12px; text-align: left; }
+    thead { background: #e0f2fe; }
+    tbody tr:nth-child(even) { background: #f8fafc; }
+    #status { line-height: 1.5; }
+  </style>
 </head>
-
-
 <body>
-
-    <h1>Singapore PSI Readings</h1>
-
-    <p id="updated-time">
-        Loading data...
-    </p>
-
+  <h1>Singapore PSI Readings</h1>
+  <p>This page fetches the latest available PSI readings from data.gov.sg.</p>
+  <p>Each row is one reading type. Each column is one region.</p>
+  <button id="refresh" type="button">Refresh data</button>
+  <p id="status" role="status">Loading data...</p>
+  <div class="table-container">
     <table>
-
-        <thead>
-
-            <tr>
-                <th>Reading</th>
-                <th>West</th>
-                <th>National</th>
-                <th>East</th>
-                <th>Central</th>
-                <th>South</th>
-                <th>North</th>
-            </tr>
-
-        </thead>
-
-
-        <tbody id="psi-table">
-
-        </tbody>
-
+      <caption>All 12 reading types</caption>
+      <thead>
+        <tr>
+          <th scope="col">Reading</th>
+          <th scope="col">North</th>
+          <th scope="col">South</th>
+          <th scope="col">East</th>
+          <th scope="col">West</th>
+          <th scope="col">Central</th>
+        </tr>
+      </thead>
+      <tbody id="readings-body"></tbody>
     </table>
+  </div>
+  <p>Source: <a href="https://data.gov.sg/datasets/d_fe37906a0182569d891506e815e819b7/view">data.gov.sg PSI dataset</a></p>
+  <p>Concentration readings and sub-index values have different units; values across rows should not be compared directly.</p>
 
+  <script>
+    // 1. The API URL provided in the assignment.
+    const API_URL = 'https://api-open.data.gov.sg/v2/real-time/api/psi';
+    const regions = ['north', 'south', 'east', 'west', 'central'];
+    // Use an explicit order because JSON field order can change.
+    const readingNames = [
+      'o3_sub_index',
+      'pm10_twenty_four_hourly',
+      'pm10_sub_index',
+      'co_sub_index',
+      'pm25_twenty_four_hourly',
+      'so2_sub_index',
+      'co_eight_hour_max',
+      'no2_one_hour_max',
+      'so2_twenty_four_hourly',
+      'pm25_sub_index',
+      'o3_eight_hour_max',
+      'psi_twenty_four_hourly'
+    ];
+    const status = document.getElementById('status');
+    const tableBody = document.getElementById('readings-body');
+    const refreshButton = document.getElementById('refresh');
 
+    async function loadPSI() {
+      refreshButton.disabled = true;
+      status.textContent = 'Loading data...';
+      tableBody.replaceChildren();
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 20000);
+      try {
+        // 2. Request data and convert the response into a JavaScript object.
+        const response = await fetch(API_URL, { signal: controller.signal });
+        if (!response.ok) throw new Error('HTTP ' + response.status);
+        const json = await response.json();
+        if (json.code !== 0) throw new Error(json.errorMsg || 'API returned an error.');
+        const items = json.data?.items;
+        if (!Array.isArray(items) || items.length === 0) {
+          throw new Error('No readings are available.');
+        }
+        // 3. Choose the newest observation, then access its readings.
+        const latest = items.reduce((newest, item) =>
+          Date.parse(item.timestamp) > Date.parse(newest.timestamp) ? item : newest
+        );
+        const readings = latest.readings;
+        if (!readings || readingNames.some(name => !readings[name])) {
+          throw new Error('The API response is missing one or more reading types.');
+        }
+        // 4. Build one row per reading and one cell per region.
+        const rows = document.createDocumentFragment();
+        for (const name of readingNames) {
+          const row = document.createElement('tr');
+          const label = document.createElement('th');
+          label.scope = 'row';
+          label.textContent = name;
+          row.appendChild(label);
+          for (const region of regions) {
+            const cell = document.createElement('td');
+            cell.textContent = readings[name][region] ?? 'N/A';
+            row.appendChild(cell);
+          }
+          rows.appendChild(row);
+        }
+        tableBody.appendChild(rows);
+        const formatTime = value => new Date(value).toLocaleString('en-SG', {
+          timeZone: 'Asia/Singapore', hour12: false
+        });
+        status.textContent = 'Reading time (Singapore): ' + formatTime(latest.timestamp)
+          + (latest.updatedTimestamp ? ' | Updated: ' + formatTime(latest.updatedTimestamp) : '')
+          + ' | Displaying ' + readingNames.length + ' reading types.';
+      } catch (error) {
+        const reason = error.name === 'AbortError' ? 'The request timed out.' : error.message;
+        status.textContent = 'Unable to load data: ' + reason + ' Please try Refresh data.';
+      } finally {
+        clearTimeout(timeout);
+        refreshButton.disabled = false;
+      }
+    }
 
-    <script>
-
-        const apiURL =
-            "https://api.data.gov.sg/v1/environment/psi";
-
-
-        fetch(apiURL)
-
-            .then(response => response.json())
-
-            .then(data => {
-
-                console.log(data);
-
-
-                // Get readings from API
-
-                const readings =
-                    data.items[0].readings;
-
-
-                // Get table body
-
-                const table =
-                    document.getElementById("psi-table");
-
-
-                // Go through all readings
-
-                Object.keys(readings).forEach(readingName => {
-
-                    const values =
-                        readings[readingName];
-
-
-                    const row =
-                        document.createElement("tr");
-
-
-                    row.innerHTML = `
-
-                        <td>${readingName}</td>
-
-                        <td>${values.west}</td>
-
-                        <td>${values.national}</td>
-
-                        <td>${values.east}</td>
-
-                        <td>${values.central}</td>
-
-                        <td>${values.south}</td>
-
-                        <td>${values.north}</td>
-
-                    `;
-
-
-                    table.appendChild(row);
-
-                });
-
-
-                // Display update time
-
-                const updateTime =
-                    data.items[0].update_timestamp;
-
-
-                document.getElementById(
-                    "updated-time"
-                ).textContent =
-                    "Last updated: " +
-                    new Date(updateTime).toLocaleString();
-
-            })
-
-
-            .catch(error => {
-
-                console.error(
-                    "Error loading PSI data:",
-                    error
-                );
-
-
-                document.getElementById(
-                    "updated-time"
-                ).textContent =
-                    "Failed to load PSI data.";
-
-            });
-
-    </script>
-
+    refreshButton.addEventListener('click', loadPSI);
+    loadPSI();
+  </script>
 </body>
-
 </html>
